@@ -4,123 +4,91 @@
 Migrate Linux Processes to Docker Containers
 
 # Prerequisite
+## docker service
+1. Make sure docker service is running
+```
+$ systemctl status docker
+```
+The output of the above command should have the line:
 ```sh
+Active: active (running)
+```
+2. If there a user group called 'docker' created already, and if the
+current user is already added to this group, you can skip this step:
+```
 sudo groupadd docker
 sudo usermod -aG docker <current-user-name>
 ```
-Restart is required after adding user to docker group
-## 1. Process List API
+If you had to perform the above step, then:  
+- Log out and log back in so that your group membership is re-evaluated.  
+- On a desktop Linux environment such as X Windows, log out of your session
+completely and then log back in.  
+- If testing on a virtual machine, if the above do not work, restart the
+virtual machine for changes to take effect.  
+  
+3. Verify that you can run docker commands without sudo.  
+Example:
 ```
-URL : /api/{accountID}/v1/listProcesses?cmd=nvim
-Method : GET
-Response :
-{
-    "pid": "93167",
-    "cmd": "nvim ALACRITTY_LOG=/tmp/Alacritty-93120.log COLORTERM=truecolor DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus DESKTOP_SESSION=i3-with-shmlog DISPLAY=:0 GDMSESSION=i3-with-shmlog GDM_LANG=en_US.UTF-8 GTK_MODULES=canberra-gtk-module HOME=/home/kryptiksage I3SOCK=/run/user/1000/i3/ipc-socket.1000 LANG=en_US.UTF-8 LOGNAME=kryptiksage MAIL=/var/spool/mail/kryptiksage MOTD_SHOWN=pam PATH=/home/kryptiksage/.cargo/bin/:/home/kryptiksage/.scripts/:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl PWD=/home/kryptiksage SHELL=/bin/zsh SHLVL=1 TERM=alacritty USER=kryptiksage USERNAME=kryptiksage WINDOWID=60817410 WINDOWPATH=2 XAUTHORITY=/run/user/1000/gdm/Xauthority XDG_DATA_DIRS=/home/kryptiksage/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share XDG_RUNTIME_DIR=/run/user/1000 XDG_SEAT=seat0 XDG_SESSION_CLASS=user XDG_SESSION_DESKTOP=i3-with-shmlog XDG_SESSION_ID=3 XDG_SESSION_TYPE=x11 XDG_VTNR=2 OLDPWD=/home/kryptiksage TERMINAL=alacritty P9K_TTY=old HISTSIZE=10000 SAVEHIST=10000 HISTFILE=/home/kryptiksage/.zsh_history P9K_SSH=0 _=/usr/bin/nvim",
-    "ppid": "93125",
-    "uid": "1000",
-    "gid": "1000",
-    "time": "5"
-}
+$ docker images
 ```
-## 2. Trace API
+The above command should not show any 'permission denied' errors
+
+## golang (Go language)
+1. Make sure 'go' is installed.
 ```
-URL : /api/{accountID}/v1/startTracing?pid=93167
-Method : PUT
-Request :
-{
-   "time": 2
-}
-```
-## 3. Get files and packages
-```
-URL : /api/{accountID}/v1/getfilepkg?pid=93167
-Method : GET
-```
-## 4. Get ports
-```
-URL : /api/{accountID}/v1/getports?pid=93167
-Method : GET
-```
-## 5. Get NFS mounts
-```
-URL : /api/{accountID}/v1/getNfsMounts?pid=93167
-Method : GET
-```
-## 6. Get Environment variables
-```
-URL : /api/{accountID}/v1/getenv?pid=93167
-Method : GET
-```
-## 7. Get Default shell
-```
-URL : /api/{accountID}/v1/getshell?pid=93167
-Method : GET
-```
-## 8. Get UID and GID
-```
-URL : /api/{accountID}/v1/getuser?pid=93167
-Method : GET
-```
-## 9. Get Start Command
-```
-URL : /api/{accountID}/v1/getstartcmd?pid=93167
-Method : GET
-```
-## 10. Docker Create dev container
-```
-URL : /api/{accountID}/v1/dockercreate?pid=93167
-Method : PUT
-Request(Optional) :
-{
-   "osname": "archlinux",
-   "osver": "latest"
-}
-```
-## 11. Docker Copy Files to dev container
-```
-URL : /api/{accountID}/v1/dockercopy?pid=93167
-Method : PUT
-Request :
-{
-    "dirs": ["testdir", "testfile.txt"]
-}
-```
-## 12. Final docker image creation
-```
-URL : /api/{accountID}/v1/finalimage?pid=93167
-Method : PUT
-Request :
-{
-    "home": "home_directory"
-}
+Follow the steps listed in https://go.dev/doc/install
 ```
 
-# Command Line Utility
-
-
-command line utility for sail. In the cloned code go to the cmd folder. 
+2. Ensure that 'go' executable is reachable via PATH
 ```
-$ cd cmd/
+$ export PATH=$PATH:/usr/local/go/bin
+```
+
+3. Confirm that 'go' command is in your search path
+```
+$ which go
+/usr/local/go/bin/go
+```
+
+# SAIL Command Line Utility
+This is written in Go language and has to be built from the sail source in the following steps:  
+
+1. do a git clone of sail code in the work directory of your choice
+```
+$ cd <workdir>
+$ git clone https://github.com/gopaddle-io/sail.git
+```
+
+2. Go to 'sail' directory, and initiate it as the root of the module
+that sail expects to import its 'go' packages into
+```
+$ cd sail
+$ go mod init github.com/gopaddle-io/sail
+go: creating new go.mod: module github.com/gopaddle-io/sail
+...
+```
+
+3. Synchronize the vendor directory in sail code
+```
+$ go mod vendor
+go: downloading golang.org/x/sys v ...
+```
+
+4. Go to the 'cmd' folder and build the 'sail' tool
+```
+$ cd cmd
 $ go build sail.go
 ```
 
-## Prerequisites:
+You should now see the an executable file called 'sail' built in this 'cmd' directory
 
-the current user need permission for run docker with user permission. 
-if user doesnt have permission. add like this
-
+## To List All Processes on the system:
 ```
-sudo chown "$USER":"$USER" /home/"$USER"/.docker -R
-sudo chmod g+rwx "/home/$USER/.docker" -R
-```
-the traced process informations will be stored under $HOME/.sail/ Directory.
-
-## To List All Process on Current User
-```
-
 $ ./sail list --all process
+```
 
+Example output:
+```
  1124  1113 /opt/google/chrome/chrome --type=zygote --no-zygote-sandbox
  1125  1113 /opt/google/chrome/chrome --type=zygote
  1126  1124 /opt/google/chrome/nacl_helper
@@ -130,13 +98,11 @@ $ ./sail list --all process
  
 ## To Containerize the Process:
 
-## Dockerize Help:
+### Help command:
 ```
 $ ./sail dockerize -h
 
-
 Migrate a running linux process in to a Docker Image. 
-
 
 sail dockerize --pid <process id> [--time <time in seconds>] [--imageName <docker image name>]
 
@@ -144,18 +110,17 @@ sail dockerize --pid <process id> [--time <time in seconds>] [--imageName <docke
     -t, --time          Time in seconds to trace the process to build its docker profile. Defaults to 2 seconds.
     -i, --imageName     Name of the final docker image. Defaults to 'final'.
     -v, --verbose       Run with Verbose Mode
-    -d, --directories   Directories to be copied(seperated by comma)
-    
+    -d, --directories   Directories to be copied(seperated by comma)  
 ```
 
-## To Strace your process and create a docker image and run as container:
+### To trace your process, create a docker image, and run as container:
 
-Use -v or --verbose to run with verbose mode
 
+Assuming that you have a process with PID 14141 currently running on your system:  
+
+##### Note: Use -v or --verbose to run with verbose mode 
 ```
-
 $ ./sail dockerize -p 14141 -i nodechecker -t 20 -d /home/bluemeric/codebase/src/gopaddle/nodechecker 
-
 
 start tracing...
 tracing completed
@@ -167,4 +132,10 @@ Docker file copying completed
 Copying fmt file of trace to container...
 nodechecker created
 ```
+You should now have the process corresponding to PID 14141 running in a container.  
+In the above run, the image name corresponding to this container is 'nodechecker'.  
+
+##### Note: The traced process information will be stored under $HOME/.sail/ Directory.  
+
+ 
 
